@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Calibri, Arial, sans-serif; background: #fff; }
+  /* A4 apaisado a 96dpi: 297mm x 210mm */
+  .pagina { width: 1123px; height: 794px; padding: 26px 36px; position: relative; color: #2C1810; }
+
+  .header { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #5C3A21; padding-bottom: 8px; margin-bottom: 10px; }
+  .header .icono { font-size: 30px; }
+  .header .titulo { font-size: 19px; font-weight: 800; color: #2C1810; }
+  .header .sub { font-size: 11px; color: #8B5E3C; }
+  .header .meta { margin-left: auto; text-align: right; font-size: 10px; color: #8B5E3C; }
+  .header .meta b { color: #2C1810; }
+
+  h3.titulo-seccion { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #5C3A21; margin-bottom: 5px; font-weight: 800; }
+
+  .bloque { background: #F5EDD8; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+  .bloque p { font-size: 10.5px; line-height: 1.35; margin-bottom: 3px; }
+  .bloque p b { color: #5C3A21; }
+
+  /* Objetivos de mejora: matriz de doble entrada (ámbito x tipo de cambio buscado) */
+  table.matriz { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+  table.matriz th { background: #EDE4D0; color: #5C3A21; padding: 3px 5px; text-align: center; font-size: 8.3px; font-weight: 800; border: 1px solid #DDD5C4; line-height: 1.2; }
+  table.matriz th.col-ambito, table.matriz th.col-desc { text-align: left; }
+  table.matriz td { border: 1px solid #DDD5C4; padding: 3px 6px; vertical-align: top; font-size: 9.5px; line-height: 1.3; }
+  table.matriz td.col-ambito { font-weight: 800; color: #5C3A21; background: #FAF6EC; white-space: nowrap; }
+  table.matriz td.chk { text-align: center; font-size: 12px; color: #3A5C2A; font-weight: 800; }
+
+  .fila-doble { display: flex; gap: 12px; margin-bottom: 8px; }
+  .fila-doble > .bloque { flex: 1; margin-bottom: 0; }
+
+  table.recursos { width: 100%; font-size: 9.5px; border-collapse: collapse; }
+  table.recursos th, table.recursos td { border: 1px solid #DDD5C4; padding: 2px 5px; text-align: left; }
+  table.recursos th { background: #EDE4D0; }
+
+  table.tareas { width: 100%; border-collapse: collapse; font-size: 10px; }
+  table.tareas th { background: #2C1810; color: #F5EDD8; padding: 4px 8px; text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+  table.tareas td { padding: 4px 8px; border-bottom: 1px solid #EDE4D0; }
+  table.tareas tr:nth-child(even) td { background: #FAF6EC; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  .dot.alta { background: #C0392B; } .dot.media { background: #D4851A; } .dot.baja { background: #3A5C2A; }
+  .estado-pill { font-size: 8.5px; font-weight: 700; padding: 1px 6px; border-radius: 8px; }
+  .estado-pendiente { background: #EDE4D0; color: #5C3A21; }
+  .estado-progreso { background: #FCE3C0; color: #8A5A1E; }
+  .estado-completada { background: #DCEAD2; color: #3A5C2A; }
+
+  .footer { position: absolute; bottom: 14px; left: 36px; right: 36px; font-size: 8.5px; color: #8B5E3C; border-top: 1px solid #EDE4D0; padding-top: 5px; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="pagina">
+
+  <div class="header">
+    <div class="icono">☕</div>
+    <div>
+      <div class="titulo">Plan de Mejora de Calidad de Café</div>
+      <div class="sub">Ubuntu Café · San Adolfo, Huila</div>
+    </div>
+    <div class="meta">
+      Código: <b>SA-07</b><br>
+      Generado el 24/06/2026
+    </div>
+  </div>
+
+  <div class="bloque">
+    <h3 class="titulo-seccion">Objetivo del Plan</h3>
+    <p><b>Cualitativo:</b> Mejorar la calidad sensorial del café y ordenar el manejo poscosecha.</p>
+    <p><b>Cuantitativo:</b> Subir el puntaje SCA de 78 a 84 pts y reducir la merma en trilla del 22% al 19% en la próxima cosecha.</p>
+  </div>
+
+  <div class="bloque">
+    <h3 class="titulo-seccion">Objetivos de Mejora</h3>
+    <table class="matriz">
+      <tr>
+        <th class="col-ambito">Ámbito</th>
+        <th class="col-desc">Descripción del objetivo</th>
+        <th>Mejorar<br>resultados<br>actuales</th>
+        <th>Mejorar<br>procesos<br>actuales</th>
+        <th>Alcanzar<br>nuevos<br>resultados</th>
+        <th>Implantar<br>nuevos<br>procesos</th>
+      </tr>
+      <tr>
+        <td class="col-ambito">🌱 Fases proceso agrícola</td>
+        <td>Hoy la fermentación no se controla y varía entre 8 y 30 horas según el día, generando defectos. Se quiere fijar un protocolo de 12-24h y clasificación previa al despulpado para reducir la merma y subir el puntaje en taza.</td>
+        <td class="chk">✓</td>
+        <td class="chk">✓</td>
+        <td class="chk"></td>
+        <td class="chk"></td>
+      </tr>
+      <tr>
+        <td class="col-ambito">💵 Finanzas</td>
+        <td>Hoy no se registran los costos de producción por actividad. Se quiere llevar un control mensual en Finanzas Cafeteros para calcular el margen real de la próxima cosecha.</td>
+        <td class="chk"></td>
+        <td class="chk"></td>
+        <td class="chk"></td>
+        <td class="chk">✓</td>
+      </tr>
+      <tr>
+        <td class="col-ambito">📈 Comercialización</td>
+        <td>Hoy el café se vende a precio convencional (78 pts SCA, sin trazabilidad). Se quiere alcanzar 84 pts para vender como café especial, con un sobreprecio estimado de 0,20-0,50 USD/lb.</td>
+        <td class="chk"></td>
+        <td class="chk"></td>
+        <td class="chk">✓</td>
+        <td class="chk"></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="fila-doble">
+    <div class="bloque">
+      <h3 class="titulo-seccion">Liderazgo</h3>
+      <p><b>Lidera:</b> Juan Pérez (caficultor)</p>
+      <p><b>Colabora:</b> María Gómez (formador), Comité de producción</p>
+    </div>
+    <div class="bloque" style="flex: 1.6">
+      <h3 class="titulo-seccion">Recursos Necesarios</h3>
+      <table class="recursos">
+        <tr><th>Tipo</th><th>Descripción</th><th>Cantidad</th></tr>
+        <tr><td>⏱ Tiempo</td><td>Seguimiento semanal</td><td>4 h/sem</td></tr>
+        <tr><td>💰 Dinero</td><td>Termómetro digital</td><td>150.000 COP</td></tr>
+        <tr><td>🛠 Equipo</td><td>Zaranda de clasificación</td><td>1 unidad</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <table class="tareas">
+    <thead>
+      <tr><th>Prioridad</th><th>Categoría</th><th>Tarea</th><th>Responsable</th><th>Inicio</th><th>Fin</th><th>Estado</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="dot alta"></span>Alta</td><td>Cosecha</td><td>Recolección selectiva de fruto maduro</td><td>Juan Pérez</td><td>01/07/2026</td><td>15/07/2026</td><td><span class="estado-pill estado-progreso">En progreso</span></td></tr>
+      <tr><td><span class="dot alta"></span>Alta</td><td>Beneficio</td><td>Controlar tiempo de fermentación (12-24h)</td><td>Juan Pérez</td><td>01/07/2026</td><td>30/07/2026</td><td><span class="estado-pill estado-pendiente">Pendiente</span></td></tr>
+      <tr><td><span class="dot media"></span>Media</td><td>Secado</td><td>Comprar termómetro y controlar humedad final</td><td>María Gómez</td><td>05/07/2026</td><td>20/07/2026</td><td><span class="estado-pill estado-pendiente">Pendiente</span></td></tr>
+      <tr><td><span class="dot media"></span>Media</td><td>Trilla</td><td>Negociar calibración de la trilladora con el trillador</td><td>Comité producción</td><td>10/07/2026</td><td>25/07/2026</td><td><span class="estado-pill estado-completada">Completada</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>Comunidad San Adolfo (SA) · Programa Ubuntu Café</span>
+    <span>Referencias: Cenicafé · FNC · SCA</span>
+  </div>
+
+</div>
+</body>
+</html>
