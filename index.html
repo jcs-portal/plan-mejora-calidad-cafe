@@ -501,7 +501,10 @@ function AppCaficultor({ code, onLogout }) {
   const cargarTodo = useCallback(() => {
     setError(""); setCargado(false);
     Promise.all([apiGet("/diagnostico", code), apiGet("/plan-accion", code), apiGet("/mensajes", code)])
-      .then(([diag, planActual, msjs]) => {
+      .then(([diagLista, planActual, msjs]) => {
+        // Un código puede tener varios diagnósticos; el plan de acción reacciona al más reciente.
+        const lista = diagLista?.diagnosticos || [];
+        const diag = lista.length > 0 ? lista[lista.length - 1] : {};
         const nuevas = fusionarPlanConDiagnostico(diag, planActual.acciones);
         setDiagnostico(diag);
         setPlan(nuevas.length > 0 ? { ...planActual, acciones: [...planActual.acciones, ...nuevas] } : planActual);
@@ -693,7 +696,11 @@ function PanelFormador({ code, comunidad, onLogout }) {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const diagPorCodigo = useMemo(() => Object.fromEntries(diagnosticos.map(d => [d.codigo, d])), [diagnosticos]);
+  // Cada código puede tener varios diagnósticos; el panel del formador muestra el más reciente.
+  const diagPorCodigo = useMemo(() => Object.fromEntries(diagnosticos.map(p => {
+    const lista = p.diagnosticos || [];
+    return [p.codigo, lista.length > 0 ? lista[lista.length - 1] : null];
+  })), [diagnosticos]);
 
   const resumen = (plan) => {
     const a = plan.acciones || [];
