@@ -13,6 +13,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://unpkg.com/docx@9.7.1/dist/index.umd.cjs"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overscroll-behavior: none; }
@@ -222,6 +223,33 @@ function fusionarPlanConDiagnostico(diagDatos, accionesActuales) {
   return recs.filter(r => !idsExistentes.has(idRecomendacion(r))).map(nuevaAccionDesdeRecomendacion);
 }
 
+// ── Objetivo, Ámbitos de mejora, Liderazgo y Recursos del plan ───────────────
+const AMBITOS_DEF = [
+  { id: "agricola", icono: "🌱", label: "Fases proceso agrícola" },
+  { id: "finanzas", icono: "💵", label: "Finanzas" },
+  { id: "comercializacion", icono: "📈", label: "Comercialización" },
+];
+const COLUMNAS_AMBITO = [
+  { campo: "mejorarResultados", label: "Mejorar resultados actuales" },
+  { campo: "mejorarProcesos", label: "Mejorar procesos actuales" },
+  { campo: "alcanzarNuevosResultados", label: "Alcanzar nuevos resultados" },
+  { campo: "implantarNuevosProcesos", label: "Implantar nuevos procesos" },
+];
+function nuevoAmbito(def) {
+  return { id: def.id, descripcion: "", mejorarResultados: false, mejorarProcesos: false, alcanzarNuevosResultados: false, implantarNuevosProcesos: false };
+}
+// Completa un plan cargado del backend con los campos nuevos si todavía no los tiene
+// (planes creados antes de esta función no los traen — el backend solo persiste lo que se le envía).
+function normalizarPlan(p) {
+  return {
+    ...p,
+    objetivo: p.objetivo || { cualitativo: "", cuantitativo: "" },
+    ambitosMejora: (p.ambitosMejora && p.ambitosMejora.length === 3) ? p.ambitosMejora : AMBITOS_DEF.map(nuevoAmbito),
+    liderazgo: p.liderazgo || { lidera: "", colabora: "" },
+    recursos: p.recursos || [],
+  };
+}
+
 const prioridadColor = p => p === "alta" ? C.alert : p === "media" ? C.warn : C.ok;
 const prioridadIcon  = p => p === "alta" ? "🔴" : p === "media" ? "🟡" : "🟢";
 const prioridadLabel = p => p === "alta" ? "Prioridad alta" : p === "media" ? "Prioridad media" : "Mantener";
@@ -256,6 +284,22 @@ function CampoTexto({ label, value, onChange, tipo = "text", placeholder }) {
         style={{
           width: "100%", padding: "9px 10px", border: `1.5px solid ${C.clay}`,
           borderRadius: 8, fontSize: 14, background: C.white, color: C.earth, outline: "none",
+        }}
+      />
+    </div>
+  );
+}
+
+function CampoTextarea({ label, value, onChange, placeholder, filas = 2 }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.bark, marginBottom: 3 }}>{label}</label>
+      <textarea
+        value={value || ""} placeholder={placeholder || "—"} rows={filas}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: "100%", padding: "9px 10px", border: `1.5px solid ${C.clay}`,
+          borderRadius: 8, fontSize: 14, background: C.white, color: C.earth, outline: "none", resize: "vertical",
         }}
       />
     </div>
@@ -410,6 +454,133 @@ function Kanban({ acciones, onCambiar, onEliminar, onAgregar, soloLectura }) {
   );
 }
 
+// ── OBJETIVO DEL PLAN (cualitativo / cuantitativo) ────────────────────────────
+function SeccionObjetivo({ objetivo, onCambiar, soloLectura }) {
+  if (soloLectura) {
+    if (!objetivo?.cualitativo && !objetivo?.cuantitativo) return <div style={{ fontSize: 12, color: C.bark }}>Sin objetivo definido todavía.</div>;
+    return (
+      <div style={{ background: C.fog, borderRadius: 10, padding: "10px 14px" }}>
+        {objetivo?.cualitativo && <div style={{ fontSize: 12, color: C.roast, marginBottom: 6 }}><b style={{ color: C.earth }}>Cualitativo:</b> {objetivo.cualitativo}</div>}
+        {objetivo?.cuantitativo && <div style={{ fontSize: 12, color: C.roast }}><b style={{ color: C.earth }}>Cuantitativo:</b> {objetivo.cuantitativo}</div>}
+      </div>
+    );
+  }
+  return (
+    <div style={{ background: C.white, borderRadius: 12, padding: 14 }}>
+      <CampoTextarea label="Objetivo cualitativo (¿qué quieres lograr?)" value={objetivo?.cualitativo} onChange={v => onCambiar("cualitativo", v)} placeholder="Ej. Mejorar la calidad sensorial del café y ordenar el manejo poscosecha" />
+      <CampoTextarea label="Objetivo cuantitativo (¿con qué número lo vas a medir?)" value={objetivo?.cuantitativo} onChange={v => onCambiar("cuantitativo", v)} placeholder="Ej. Subir el puntaje SCA de 78 a 84 pts" />
+    </div>
+  );
+}
+
+// ── OBJETIVOS DE MEJORA: matriz de doble entrada (ámbito × tipo de cambio) ────
+function SeccionAmbitos({ ambitos, onCambiar, soloLectura }) {
+  const filas = AMBITOS_DEF.map((def, i) => ambitos?.[i] || nuevoAmbito(def));
+  if (soloLectura) {
+    return (
+      <div style={{ background: C.white, borderRadius: 12, overflow: "hidden" }}>
+        {filas.map((fila, i) => (
+          <div key={AMBITOS_DEF[i].id} style={{ padding: 10, borderBottom: i < 2 ? `1px solid ${C.fog}` : "none" }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.roast, marginBottom: 4 }}>{AMBITOS_DEF[i].icono} {AMBITOS_DEF[i].label}</div>
+            <div style={{ fontSize: 12, color: C.earth, marginBottom: 6 }}>{fila.descripcion || "—"}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {COLUMNAS_AMBITO.filter(c => fila[c.campo]).map(c => (
+                <span key={c.campo} style={{ fontSize: 10, fontWeight: 700, color: C.leaf, background: C.mist, borderRadius: 8, padding: "2px 8px" }}>✓ {c.label}</span>
+              ))}
+              {COLUMNAS_AMBITO.every(c => !fila[c.campo]) && <span style={{ fontSize: 11, color: C.bark }}>Sin marcar</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {filas.map((fila, i) => (
+        <div key={AMBITOS_DEF[i].id} style={{ background: C.white, borderRadius: 12, padding: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.roast, marginBottom: 8 }}>{AMBITOS_DEF[i].icono} {AMBITOS_DEF[i].label}</div>
+          <CampoTextarea label="Descripción del objetivo en este ámbito" value={fila.descripcion} onChange={v => onCambiar(i, "descripcion", v)} placeholder="¿Qué pasa hoy y qué se quiere lograr?" />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 4 }}>
+            {COLUMNAS_AMBITO.map(c => (
+              <label key={c.campo} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.earth, fontWeight: 600 }}>
+                <input type="checkbox" checked={!!fila[c.campo]} onChange={e => onCambiar(i, c.campo, e.target.checked)} style={{ width: 16, height: 16 }} />
+                {c.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── LIDERAZGO + RECURSOS NECESARIOS ───────────────────────────────────────────
+function SeccionLiderazgo({ liderazgo, onCambiar, soloLectura }) {
+  if (soloLectura) {
+    if (!liderazgo?.lidera && !liderazgo?.colabora) return <div style={{ fontSize: 12, color: C.bark }}>Sin definir.</div>;
+    return (
+      <div style={{ background: C.fog, borderRadius: 10, padding: "10px 14px" }}>
+        {liderazgo?.lidera && <div style={{ fontSize: 12, color: C.roast, marginBottom: 4 }}><b style={{ color: C.earth }}>Lidera:</b> {liderazgo.lidera}</div>}
+        {liderazgo?.colabora && <div style={{ fontSize: 12, color: C.roast }}><b style={{ color: C.earth }}>Colabora:</b> {liderazgo.colabora}</div>}
+      </div>
+    );
+  }
+  return (
+    <div style={{ background: C.white, borderRadius: 12, padding: 14 }}>
+      <CampoTexto label="Lidera" value={liderazgo?.lidera} onChange={v => onCambiar("lidera", v)} placeholder="Ej. Yo mismo" />
+      <CampoTexto label="Colabora" value={liderazgo?.colabora} onChange={v => onCambiar("colabora", v)} placeholder="Ej. Mi formador, comité de producción" />
+    </div>
+  );
+}
+
+function SeccionRecursos({ recursos, onCambiar, onAgregar, onEliminar, soloLectura }) {
+  const lista = recursos || [];
+  if (soloLectura) {
+    if (lista.length === 0) return <div style={{ fontSize: 12, color: C.bark }}>Sin recursos definidos.</div>;
+    return (
+      <div style={{ background: C.white, borderRadius: 12, overflow: "hidden" }}>
+        {lista.map((r, i) => (
+          <div key={r.id || i} style={{ display: "flex", gap: 10, padding: "8px 12px", borderBottom: i < lista.length - 1 ? `1px solid ${C.fog}` : "none", fontSize: 12 }}>
+            <span style={{ flex: "0 0 90px", fontWeight: 700, color: C.roast }}>{r.tipo || "—"}</span>
+            <span style={{ flex: 1, color: C.earth }}>{r.descripcion || "—"}</span>
+            <span style={{ color: C.bark }}>{r.cantidad || ""}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div style={{ background: C.white, borderRadius: 12, padding: 14 }}>
+      {lista.map((r, i) => (
+        <div key={r.id || i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-end" }}>
+          <div style={{ flex: "0 0 30%" }}>
+            <select value={r.tipo || "⏱ Tiempo"} onChange={e => onCambiar(i, "tipo", e.target.value)}
+              style={{ width: "100%", padding: "9px 8px", borderRadius: 8, border: `1.5px solid ${C.clay}`, fontSize: 13, background: C.white }}>
+              <option>⏱ Tiempo</option>
+              <option>💰 Dinero</option>
+              <option>🛠 Equipo</option>
+              <option>👥 Personas</option>
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <input value={r.descripcion || ""} onChange={e => onCambiar(i, "descripcion", e.target.value)} placeholder="Descripción"
+              style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: `1.5px solid ${C.clay}`, fontSize: 13, background: C.white, color: C.earth }} />
+          </div>
+          <div style={{ flex: "0 0 26%" }}>
+            <input value={r.cantidad || ""} onChange={e => onCambiar(i, "cantidad", e.target.value)} placeholder="Cantidad"
+              style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: `1.5px solid ${C.clay}`, fontSize: 13, background: C.white, color: C.earth }} />
+          </div>
+          <button onClick={() => onEliminar(i)} style={{ background: "none", border: "none", color: C.bark, fontSize: 14, padding: "9px 4px" }}>✕</button>
+        </div>
+      ))}
+      <button onClick={onAgregar} style={{
+        width: "100%", borderRadius: 8, border: `1.5px dashed ${C.clay}`, background: "transparent",
+        color: C.roast, fontSize: 12, fontWeight: 700, padding: "8px 0",
+      }}>+ Añadir recurso</button>
+    </div>
+  );
+}
+
 // ── MENSAJES DEL FORMADOR ──────────────────────────────────────────────────────
 function iconoMensaje(tipo) { return tipo === "documento" ? "📄" : tipo === "enlace" ? "🔗" : "💬"; }
 
@@ -506,8 +677,9 @@ function AppCaficultor({ code, onLogout }) {
         const lista = diagLista?.diagnosticos || [];
         const diag = lista.length > 0 ? lista[lista.length - 1] : {};
         const nuevas = fusionarPlanConDiagnostico(diag, planActual.acciones);
+        const planConAcciones = nuevas.length > 0 ? { ...planActual, acciones: [...planActual.acciones, ...nuevas] } : planActual;
         setDiagnostico(diag);
-        setPlan(nuevas.length > 0 ? { ...planActual, acciones: [...planActual.acciones, ...nuevas] } : planActual);
+        setPlan(normalizarPlan(planConAcciones));
         setMensajes(msjs);
       })
       .catch(e => setError(e.message || "No se pudo conectar con el servidor"))
@@ -555,6 +727,98 @@ function AppCaficultor({ code, onLogout }) {
   const eliminarAccion = useCallback((id) => {
     setPlan(p => ({ ...p, acciones: p.acciones.filter(a => a.id !== id) }));
   }, []);
+
+  const cambiarObjetivo = useCallback((campo, valor) => {
+    setPlan(p => ({ ...p, objetivo: { ...p.objetivo, [campo]: valor } }));
+  }, []);
+
+  const cambiarAmbito = useCallback((indice, campo, valor) => {
+    setPlan(p => ({ ...p, ambitosMejora: p.ambitosMejora.map((a, i) => i === indice ? { ...a, [campo]: valor } : a) }));
+  }, []);
+
+  const cambiarLiderazgo = useCallback((campo, valor) => {
+    setPlan(p => ({ ...p, liderazgo: { ...p.liderazgo, [campo]: valor } }));
+  }, []);
+
+  const cambiarRecurso = useCallback((indice, campo, valor) => {
+    setPlan(p => ({ ...p, recursos: p.recursos.map((r, i) => i === indice ? { ...r, [campo]: valor } : r) }));
+  }, []);
+
+  const agregarRecurso = useCallback(() => {
+    setPlan(p => ({ ...p, recursos: [...p.recursos, { id: (crypto.randomUUID ? crypto.randomUUID() : "recurso-" + Date.now()), tipo: "⏱ Tiempo", descripcion: "", cantidad: "" }] }));
+  }, []);
+
+  const eliminarRecurso = useCallback((indice) => {
+    setPlan(p => ({ ...p, recursos: p.recursos.filter((_, i) => i !== indice) }));
+  }, []);
+
+  const descargarWordPlan = useCallback(async () => {
+    try {
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } = window.docx;
+      const fecha = new Date().toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" });
+      const celda = (texto, opts) => new TableCell({ width: opts?.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined, children: [new Paragraph({ alignment: opts?.centro ? "center" : "left", children: [new TextRun({ text: texto ?? "", bold: !!opts?.bold, size: 18 })] })] });
+
+      const filasAmbitos = [
+        new TableRow({ children: [celda("Ámbito", { bold: true, width: 14 }), celda("Descripción del objetivo", { bold: true, width: 46 }), celda("Mejorar resultados", { bold: true, width: 10, centro: true }), celda("Mejorar procesos", { bold: true, width: 10, centro: true }), celda("Nuevos resultados", { bold: true, width: 10, centro: true }), celda("Nuevos procesos", { bold: true, width: 10, centro: true })] }),
+        ...AMBITOS_DEF.map((def, i) => {
+          const a = plan.ambitosMejora[i];
+          return new TableRow({ children: [
+            celda(`${def.icono} ${def.label}`, { bold: true, width: 14 }),
+            celda(a.descripcion || "—", { width: 46 }),
+            celda(a.mejorarResultados ? "✓" : "", { width: 10, centro: true }),
+            celda(a.mejorarProcesos ? "✓" : "", { width: 10, centro: true }),
+            celda(a.alcanzarNuevosResultados ? "✓" : "", { width: 10, centro: true }),
+            celda(a.implantarNuevosProcesos ? "✓" : "", { width: 10, centro: true }),
+          ] });
+        }),
+      ];
+
+      const filasRecursos = [
+        new TableRow({ children: [celda("Tipo", { bold: true, width: 25 }), celda("Descripción", { bold: true, width: 50 }), celda("Cantidad", { bold: true, width: 25 })] }),
+        ...(plan.recursos.length > 0 ? plan.recursos.map(r => new TableRow({ children: [celda(r.tipo, { width: 25 }), celda(r.descripcion, { width: 50 }), celda(r.cantidad, { width: 25 })] })) : [new TableRow({ children: [celda("—", { width: 25 }), celda("Sin recursos definidos", { width: 50 }), celda("—", { width: 25 })] })]),
+      ];
+
+      const filasTareas = [
+        new TableRow({ children: [celda("Prioridad", { bold: true, width: 12 }), celda("Categoría", { bold: true, width: 16 }), celda("Tarea", { bold: true, width: 30 }), celda("Responsable", { bold: true, width: 14 }), celda("Plazo", { bold: true, width: 12 }), celda("Estado", { bold: true, width: 16 })] }),
+        ...(plan.acciones.length > 0 ? plan.acciones.map(a => new TableRow({ children: [
+          celda(prioridadLabel(a.prioridad), { width: 12 }),
+          celda(a.categoria || "—", { width: 16 }),
+          celda(a.titulo || "—", { width: 30 }),
+          celda(a.responsable || "—", { width: 14 }),
+          celda(a.plazo || "—", { width: 12 }),
+          celda(ESTADOS.find(e => e.id === a.estado)?.label || a.estado, { width: 16 }),
+        ] })) : [new TableRow({ children: [celda("—", { width: 12 }), celda("—", { width: 16 }), celda("Sin tareas en el plan", { width: 30 }), celda("—", { width: 14 }), celda("—", { width: 12 }), celda("—", { width: 16 })] })]),
+      ];
+
+      const doc = new Document({ sections: [{ children: [
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "Plan de Mejora de Calidad de Café" })] }),
+        new Paragraph({ children: [new TextRun({ text: `Ubuntu Café · San Adolfo, Huila — Código: ${code} — Generado el ${fecha}`, color: "555555", size: 20 })] }),
+        new Paragraph({ text: "" }),
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Objetivo del plan" })] }),
+        new Paragraph({ children: [new TextRun({ text: "Cualitativo: ", bold: true, size: 20 }), new TextRun({ text: plan.objetivo.cualitativo || "—", size: 20 })] }),
+        new Paragraph({ children: [new TextRun({ text: "Cuantitativo: ", bold: true, size: 20 }), new TextRun({ text: plan.objetivo.cuantitativo || "—", size: 20 })] }),
+        new Paragraph({ text: "" }),
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Objetivos de mejora" })] }),
+        new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasAmbitos }),
+        new Paragraph({ text: "" }),
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Liderazgo" })] }),
+        new Paragraph({ children: [new TextRun({ text: "Lidera: ", bold: true, size: 20 }), new TextRun({ text: plan.liderazgo.lidera || "—", size: 20 })] }),
+        new Paragraph({ children: [new TextRun({ text: "Colabora: ", bold: true, size: 20 }), new TextRun({ text: plan.liderazgo.colabora || "—", size: 20 })] }),
+        new Paragraph({ text: "" }),
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Recursos necesarios" })] }),
+        new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasRecursos }),
+        new Paragraph({ text: "" }),
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Listado de tareas" })] }),
+        new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasTareas }),
+      ] }] });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `plan-mejora-${code}-${new Date().toISOString().slice(0, 10)}.docx`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { window.alert("No se pudo generar el documento Word: " + (e.message || e)); }
+  }, [code, plan]);
 
   const borrarMiPlan = useCallback(async () => {
     if (!window.confirm("¿Seguro que quieres borrar TODO tu plan de acción? Esta acción no se puede deshacer.")) return;
@@ -620,6 +884,30 @@ function AppCaficultor({ code, onLogout }) {
           </div>
         )}
 
+        {/* Objetivo del plan */}
+        <h3 style={{ fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Objetivo del plan</h3>
+        <div style={{ marginBottom: 24 }}>
+          <SeccionObjetivo objetivo={plan.objetivo} onCambiar={cambiarObjetivo} soloLectura={false} />
+        </div>
+
+        {/* Objetivos de mejora (matriz por ámbito) */}
+        <h3 style={{ fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Objetivos de mejora</h3>
+        <div style={{ marginBottom: 24 }}>
+          <SeccionAmbitos ambitos={plan.ambitosMejora} onCambiar={cambiarAmbito} soloLectura={false} />
+        </div>
+
+        {/* Liderazgo */}
+        <h3 style={{ fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Liderazgo</h3>
+        <div style={{ marginBottom: 24 }}>
+          <SeccionLiderazgo liderazgo={plan.liderazgo} onCambiar={cambiarLiderazgo} soloLectura={false} />
+        </div>
+
+        {/* Recursos necesarios */}
+        <h3 style={{ fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Recursos necesarios</h3>
+        <div style={{ marginBottom: 24 }}>
+          <SeccionRecursos recursos={plan.recursos} onCambiar={cambiarRecurso} onAgregar={agregarRecurso} onEliminar={eliminarRecurso} soloLectura={false} />
+        </div>
+
         {/* Kanban del plan */}
         <h3 style={{ fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Tu plan de acción</h3>
         <Kanban acciones={plan.acciones} onCambiar={cambiarAccion} onEliminar={eliminarAccion} onAgregar={agregarAccion} soloLectura={false} />
@@ -629,11 +917,15 @@ function AppCaficultor({ code, onLogout }) {
         {mensajes.length === 0 && <div style={{ fontSize: 13, color: C.bark }}>Sin mensajes por ahora.</div>}
         {mensajes.map(m => <TarjetaMensaje key={m.id} m={m} />)}
 
-        {/* Imprimir */}
+        {/* Imprimir / descargar */}
         <button onClick={() => window.print()} style={{
           width: "100%", marginTop: 20, borderRadius: 12, border: "none", padding: "14px 0",
           background: C.roast, color: C.cream, fontSize: 15, fontWeight: 900,
         }}>🖨️ Imprimir mi plan</button>
+        <button onClick={descargarWordPlan} style={{
+          width: "100%", marginTop: 10, borderRadius: 12, border: `1.5px solid ${C.roast}`, padding: "13px 0",
+          background: "transparent", color: C.roast, fontSize: 14, fontWeight: 900,
+        }}>📄 Descargar mi plan en Word</button>
 
         {/* Borrar mis datos */}
         <button onClick={borrarMiPlan} style={{
@@ -663,6 +955,19 @@ function DetalleCaficultorFormador({ codigo, diagnostico, plan, onBorrarPlan, on
           background: "transparent", color: C.alert, fontSize: 12, fontWeight: 800,
         }}>🗑 Borrar diagnóstico de {codigo}</button>
       )}
+
+      <h4 style={{ fontSize: 13, fontWeight: 900, color: C.earth, marginBottom: 8 }}>Objetivo del plan</h4>
+      <div style={{ marginBottom: 16 }}><SeccionObjetivo objetivo={plan?.objetivo} soloLectura={true} /></div>
+
+      <h4 style={{ fontSize: 13, fontWeight: 900, color: C.earth, marginBottom: 8 }}>Objetivos de mejora</h4>
+      <div style={{ marginBottom: 16 }}><SeccionAmbitos ambitos={plan?.ambitosMejora || AMBITOS_DEF.map(nuevoAmbito)} soloLectura={true} /></div>
+
+      <h4 style={{ fontSize: 13, fontWeight: 900, color: C.earth, marginBottom: 8 }}>Liderazgo</h4>
+      <div style={{ marginBottom: 16 }}><SeccionLiderazgo liderazgo={plan?.liderazgo} soloLectura={true} /></div>
+
+      <h4 style={{ fontSize: 13, fontWeight: 900, color: C.earth, marginBottom: 8 }}>Recursos necesarios</h4>
+      <div style={{ marginBottom: 16 }}><SeccionRecursos recursos={plan?.recursos} soloLectura={true} /></div>
+
       <h4 style={{ fontSize: 13, fontWeight: 900, color: C.earth, marginBottom: 10 }}>Plan de acción (solo lectura)</h4>
       <Kanban acciones={plan?.acciones || []} soloLectura={true} />
       {onBorrarPlan && (
