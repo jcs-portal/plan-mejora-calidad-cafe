@@ -244,9 +244,15 @@ function fusionarPlanConDiagnostico(diagDatos, accionesActuales) {
 
 // ── Objetivo, Ámbitos de mejora, Liderazgo y Recursos del plan ───────────────
 const AMBITOS_DEF = [
-  { id: "agricola", icono: "🌱", label: "Fases proceso agrícola" },
-  { id: "finanzas", icono: "💵", label: "Finanzas" },
-  { id: "comercializacion", icono: "📈", label: "Comercialización" },
+  { id: "agricola", icono: "🌱", label: "Fases proceso agrícola",
+    ayuda: "Piensa en cosecha, beneficio, secado o trilla: ¿qué etapa no está controlada hoy y qué cambio concreto quieres fijar?",
+    placeholder: "Ej. Hoy la fermentación no se controla y varía entre 8 y 30 horas según el día, generando defectos. Se quiere fijar un protocolo de 12-24h." },
+  { id: "finanzas", icono: "💵", label: "Finanzas",
+    ayuda: "Piensa en lo que registras (o no) de costos e ingresos: ¿qué te falta llevar y para qué decisión te serviría?",
+    placeholder: "Ej. Hoy no se registran los costos de producción por actividad. Se quiere llevar un control mensual en Finanzas Cafeteros para calcular el margen real." },
+  { id: "comercializacion", icono: "📈", label: "Comercialización",
+    ayuda: "Piensa en a quién le vendes y a qué precio hoy: ¿a qué quieres llegar (café especial, nuevo comprador, sello o certificación)?",
+    placeholder: "Ej. Hoy el café se vende a precio convencional, sin trazabilidad. Se quiere alcanzar un puntaje SCA más alto para vender como café especial." },
 ];
 const COLUMNAS_AMBITO = [
   { campo: "mejorarResultados", label: "Mejorar resultados actuales" },
@@ -309,10 +315,11 @@ function CampoTexto({ label, value, onChange, tipo = "text", placeholder }) {
   );
 }
 
-function CampoTextarea({ label, value, onChange, placeholder, filas = 2 }) {
+function CampoTextarea({ label, value, onChange, placeholder, ayuda, filas = 2 }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.bark, marginBottom: 3 }}>{label}</label>
+      {ayuda && <p style={{ fontSize: 11, color: C.bark, marginBottom: 5, lineHeight: 1.45 }}>{ayuda}</p>}
       <textarea
         value={value || ""} placeholder={placeholder || "—"} rows={filas}
         onChange={e => onChange(e.target.value)}
@@ -533,7 +540,8 @@ function SeccionAmbitos({ ambitos, onCambiar, soloLectura }) {
       {filas.map((fila, i) => (
         <div key={AMBITOS_DEF[i].id} style={{ background: C.white, borderRadius: 12, padding: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: C.roast, marginBottom: 8 }}>{AMBITOS_DEF[i].icono} {AMBITOS_DEF[i].label}</div>
-          <CampoTextarea label="Descripción del objetivo en este ámbito" value={fila.descripcion} onChange={v => onCambiar(i, "descripcion", v)} placeholder="¿Qué pasa hoy y qué se quiere lograr?" />
+          <CampoTextarea label="Descripción del objetivo en este ámbito" value={fila.descripcion} onChange={v => onCambiar(i, "descripcion", v)}
+            ayuda={AMBITOS_DEF[i].ayuda} placeholder={AMBITOS_DEF[i].placeholder} />
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 4 }}>
             {COLUMNAS_AMBITO.map(c => (
               <label key={c.campo} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.earth, fontWeight: 600 }}>
@@ -788,63 +796,138 @@ function AppCaficultor({ code, onLogout }) {
 
   const descargarWordPlan = useCallback(async () => {
     try {
-      const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } = window.docx;
+      const {
+        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType,
+        AlignmentType, BorderStyle, ShadingType, VerticalAlign, Footer, PageOrientation,
+      } = window.docx;
       const fecha = new Date().toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" });
-      const celda = (texto, opts) => new TableCell({ width: opts?.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined, children: [new Paragraph({ alignment: opts?.centro ? "center" : "left", children: [new TextRun({ text: texto ?? "", bold: !!opts?.bold, size: 18 })] })] });
 
+      // Misma paleta y mismos textos que el mockup aprobado
+      // (specs/mockups/plan-accion-word-a4-apaisado.html) y que el asistente en pantalla.
+      const COL = { earth: "2C1810", roast: "5C3A21", bark: "8B5E3C", fog: "EDE4D0", bloque: "F5EDD8", fila: "FAF6EC", borde: "DDD5C4", alta: "C0392B", media: "D4851A", baja: "3A5C2A" };
+      const colorPrioridad = p => p === "alta" ? COL.alta : p === "media" ? COL.media : COL.baja;
+      const labelPrioridad = p => p === "alta" ? "Alta" : p === "media" ? "Media" : "Baja";
+      const ESTADO_ESTILO = { pendiente: { bg: COL.fog, color: COL.roast }, en_progreso: { bg: "FCE3C0", color: "8A5A1E" }, completada: { bg: "DCEAD2", color: COL.baja } };
+
+      const sinBordes = { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } };
+      const bordeFino = { style: BorderStyle.SINGLE, size: 4, color: COL.borde };
+      const conBordes = { top: bordeFino, bottom: bordeFino, left: bordeFino, right: bordeFino };
+      const celda = (texto, opts = {}) => new TableCell({
+        width: opts.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
+        borders: opts.sinBorde ? sinBordes : conBordes,
+        shading: opts.bg ? { type: ShadingType.SOLID, color: opts.bg } : undefined,
+        verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: opts.centro ? AlignmentType.CENTER : AlignmentType.LEFT, children: [new TextRun({ text: texto ?? "", bold: !!opts.bold, color: opts.color, size: opts.size || 18 })] })],
+      });
+
+      // ── Cabecera: ícono/título a la izquierda, código/fecha a la derecha ──
+      const tablaCabecera = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [new TableRow({ children: [
+          new TableCell({ borders: sinBordes, width: { size: 70, type: WidthType.PERCENTAGE }, children: [
+            new Paragraph({ children: [new TextRun({ text: "☕ ", size: 32 }), new TextRun({ text: "Plan de Mejora de Calidad de Café", bold: true, size: 28, color: COL.earth })] }),
+            new Paragraph({ children: [new TextRun({ text: "Ubuntu Café · San Adolfo, Huila", size: 18, color: COL.bark })] }),
+          ] }),
+          new TableCell({ borders: sinBordes, width: { size: 30, type: WidthType.PERCENTAGE }, verticalAlign: VerticalAlign.CENTER, children: [
+            new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Código: ", size: 18, color: COL.bark }), new TextRun({ text: code, bold: true, size: 18, color: COL.earth })] }),
+            new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `Generado el ${fecha}`, size: 18, color: COL.bark })] }),
+          ] }),
+        ] })],
+      });
+      const lineaCabecera = new Paragraph({ spacing: { after: 200 }, border: { bottom: { style: BorderStyle.SINGLE, size: 18, color: COL.roast } }, children: [] });
+
+      const tituloSeccion = texto => new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: texto.toUpperCase(), bold: true, size: 16, color: COL.roast })] });
+      const bloque = (titulo, parrafos) => new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [new TableRow({ children: [new TableCell({
+          borders: sinBordes, shading: { type: ShadingType.SOLID, color: COL.bloque }, margins: { top: 120, bottom: 120, left: 160, right: 160 },
+          children: [tituloSeccion(titulo), ...parrafos],
+        })] })],
+      });
+      const espacio = () => new Paragraph({ text: "", spacing: { after: 160 } });
+
+      // ── Objetivo del plan ──
+      const bloqueObjetivo = bloque("Objetivo del Plan", [
+        new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: "Cualitativo: ", bold: true, size: 20, color: COL.roast }), new TextRun({ text: plan.objetivo.cualitativo || "—", size: 20, color: COL.earth })] }),
+        new Paragraph({ children: [new TextRun({ text: "Cuantitativo: ", bold: true, size: 20, color: COL.roast }), new TextRun({ text: plan.objetivo.cuantitativo || "—", size: 20, color: COL.earth })] }),
+      ]);
+
+      // ── Objetivos de mejora: misma matriz y mismas etiquetas de columna que en la app (COLUMNAS_AMBITO) ──
       const filasAmbitos = [
-        new TableRow({ children: [celda("Ámbito", { bold: true, width: 14 }), celda("Descripción del objetivo", { bold: true, width: 46 }), celda("Mejorar resultados", { bold: true, width: 10, centro: true }), celda("Mejorar procesos", { bold: true, width: 10, centro: true }), celda("Nuevos resultados", { bold: true, width: 10, centro: true }), celda("Nuevos procesos", { bold: true, width: 10, centro: true })] }),
+        new TableRow({ children: [
+          celda("Ámbito", { bold: true, bg: COL.fog, color: COL.roast, width: 14, size: 16 }),
+          celda("Descripción del objetivo", { bold: true, bg: COL.fog, color: COL.roast, width: 36, size: 16 }),
+          ...COLUMNAS_AMBITO.map(c => celda(c.label, { bold: true, bg: COL.fog, color: COL.roast, width: 12.5, centro: true, size: 15 })),
+        ] }),
         ...AMBITOS_DEF.map((def, i) => {
           const a = plan.ambitosMejora[i];
           return new TableRow({ children: [
-            celda(`${def.icono} ${def.label}`, { bold: true, width: 14 }),
-            celda(a.descripcion || "—", { width: 46 }),
-            celda(a.mejorarResultados ? "✓" : "", { width: 10, centro: true }),
-            celda(a.mejorarProcesos ? "✓" : "", { width: 10, centro: true }),
-            celda(a.alcanzarNuevosResultados ? "✓" : "", { width: 10, centro: true }),
-            celda(a.implantarNuevosProcesos ? "✓" : "", { width: 10, centro: true }),
+            celda(`${def.icono} ${def.label}`, { bold: true, bg: "FAF6EC", color: COL.roast, width: 14, size: 16 }),
+            celda(a.descripcion || "—", { width: 36, size: 16 }),
+            ...COLUMNAS_AMBITO.map(c => celda(a[c.campo] ? "✓" : "", { width: 12.5, centro: true, color: COL.baja, bold: true })),
           ] });
         }),
       ];
+      const bloqueAmbitos = [tituloSeccion("Objetivos de Mejora"), new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasAmbitos })];
 
+      // ── Liderazgo + Recursos, lado a lado (igual que en el mockup) ──
       const filasRecursos = [
-        new TableRow({ children: [celda("Tipo", { bold: true, width: 25 }), celda("Descripción", { bold: true, width: 50 }), celda("Cantidad", { bold: true, width: 25 })] }),
-        ...(plan.recursos.length > 0 ? plan.recursos.map(r => new TableRow({ children: [celda(r.tipo, { width: 25 }), celda(r.descripcion, { width: 50 }), celda(r.cantidad, { width: 25 })] })) : [new TableRow({ children: [celda("—", { width: 25 }), celda("Sin recursos definidos", { width: 50 }), celda("—", { width: 25 })] })]),
+        new TableRow({ children: [celda("Tipo", { bold: true, bg: COL.fog, color: COL.roast, width: 28, size: 15 }), celda("Descripción", { bold: true, bg: COL.fog, color: COL.roast, width: 44, size: 15 }), celda("Cantidad", { bold: true, bg: COL.fog, color: COL.roast, width: 28, size: 15 })] }),
+        ...(plan.recursos.length > 0 ? plan.recursos.map(r => new TableRow({ children: [celda(r.tipo, { width: 28, size: 16 }), celda(r.descripcion, { width: 44, size: 16 }), celda(r.cantidad, { width: 28, size: 16 })] })) : [new TableRow({ children: [celda("—", { width: 28 }), celda("Sin recursos definidos", { width: 44 }), celda("—", { width: 28 })] })]),
       ];
+      const filaLiderazgoRecursos = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [new TableRow({ children: [
+          new TableCell({ borders: sinBordes, width: { size: 35, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: COL.bloque }, margins: { top: 120, bottom: 120, left: 160, right: 160 }, children: [
+            tituloSeccion("Liderazgo"),
+            new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: "Lidera: ", bold: true, size: 20, color: COL.roast }), new TextRun({ text: plan.liderazgo.lidera || "—", size: 20, color: COL.earth })] }),
+            new Paragraph({ children: [new TextRun({ text: "Colabora: ", bold: true, size: 20, color: COL.roast }), new TextRun({ text: plan.liderazgo.colabora || "—", size: 20, color: COL.earth })] }),
+          ] }),
+          new TableCell({ borders: sinBordes, width: { size: 65, type: WidthType.PERCENTAGE }, shading: { type: ShadingType.SOLID, color: COL.bloque }, margins: { top: 120, bottom: 120, left: 160, right: 160 }, children: [
+            tituloSeccion("Recursos Necesarios"),
+            new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasRecursos }),
+          ] }),
+        ] })],
+      });
 
+      // ── Listado de tareas: cabecera oscura, filas alternas, prioridad y estado con el mismo color que en el Kanban ──
       const filasTareas = [
-        new TableRow({ children: [celda("Prioridad", { bold: true, width: 12 }), celda("Categoría", { bold: true, width: 16 }), celda("Tarea", { bold: true, width: 30 }), celda("Responsable", { bold: true, width: 14 }), celda("Plazo", { bold: true, width: 12 }), celda("Estado", { bold: true, width: 16 })] }),
-        ...(plan.acciones.length > 0 ? plan.acciones.map(a => new TableRow({ children: [
-          celda(prioridadLabel(a.prioridad), { width: 12 }),
-          celda(a.categoria || "—", { width: 16 }),
-          celda(a.titulo || "—", { width: 30 }),
-          celda(a.responsable || "—", { width: 14 }),
-          celda(a.plazo || "—", { width: 12 }),
-          celda(ESTADOS.find(e => e.id === a.estado)?.label || a.estado, { width: 16 }),
-        ] })) : [new TableRow({ children: [celda("—", { width: 12 }), celda("—", { width: 16 }), celda("Sin tareas en el plan", { width: 30 }), celda("—", { width: 14 }), celda("—", { width: 12 }), celda("—", { width: 16 })] })]),
+        new TableRow({ children: [celda("Prioridad", { bold: true, bg: COL.earth, color: "F5EDD8", width: 10, size: 16 }), celda("Categoría", { bold: true, bg: COL.earth, color: "F5EDD8", width: 14, size: 16 }), celda("Tarea", { bold: true, bg: COL.earth, color: "F5EDD8", width: 30, size: 16 }), celda("Responsable", { bold: true, bg: COL.earth, color: "F5EDD8", width: 16, size: 16 }), celda("Plazo", { bold: true, bg: COL.earth, color: "F5EDD8", width: 12, size: 16 }), celda("Estado", { bold: true, bg: COL.earth, color: "F5EDD8", width: 18, size: 16 })] }),
+        ...(plan.acciones.length > 0 ? plan.acciones.map((a, i) => {
+          const filaBg = i % 2 === 1 ? COL.fila : undefined;
+          const est = ESTADO_ESTILO[a.estado] || ESTADO_ESTILO.pendiente;
+          return new TableRow({ children: [
+            celda(`● ${labelPrioridad(a.prioridad)}`, { width: 10, bg: filaBg, color: colorPrioridad(a.prioridad), bold: true }),
+            celda(a.categoria || "—", { width: 14, bg: filaBg }),
+            celda(a.titulo || "—", { width: 30, bg: filaBg }),
+            celda(a.responsable || "—", { width: 16, bg: filaBg }),
+            celda(a.plazo || "—", { width: 12, bg: filaBg }),
+            celda(ESTADOS.find(e => e.id === a.estado)?.label || a.estado, { width: 18, bg: est.bg, color: est.color, bold: true, centro: true }),
+          ] });
+        }) : [new TableRow({ children: [celda("—", { width: 10 }), celda("—", { width: 14 }), celda("Sin tareas en el plan", { width: 30 }), celda("—", { width: 16 }), celda("—", { width: 12 }), celda("—", { width: 18 })] })]),
       ];
 
-      const doc = new Document({ sections: [{ children: [
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "Plan de Mejora de Calidad de Café" })] }),
-        new Paragraph({ children: [new TextRun({ text: `Ubuntu Café · San Adolfo, Huila — Código: ${code} — Generado el ${fecha}`, color: "555555", size: 20 })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Objetivo del plan" })] }),
-        new Paragraph({ children: [new TextRun({ text: "Cualitativo: ", bold: true, size: 20 }), new TextRun({ text: plan.objetivo.cualitativo || "—", size: 20 })] }),
-        new Paragraph({ children: [new TextRun({ text: "Cuantitativo: ", bold: true, size: 20 }), new TextRun({ text: plan.objetivo.cuantitativo || "—", size: 20 })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Objetivos de mejora" })] }),
-        new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasAmbitos }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Liderazgo" })] }),
-        new Paragraph({ children: [new TextRun({ text: "Lidera: ", bold: true, size: 20 }), new TextRun({ text: plan.liderazgo.lidera || "—", size: 20 })] }),
-        new Paragraph({ children: [new TextRun({ text: "Colabora: ", bold: true, size: 20 }), new TextRun({ text: plan.liderazgo.colabora || "—", size: 20 })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Recursos necesarios" })] }),
-        new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasRecursos }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: "Listado de tareas" })] }),
-        new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasTareas }),
-      ] }] });
+      const doc = new Document({
+        sections: [{
+          properties: { page: { size: { orientation: PageOrientation.LANDSCAPE }, margin: { top: 500, bottom: 500, left: 500, right: 500 } } },
+          footers: { default: new Footer({ children: [new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [new TableRow({ children: [
+              new TableCell({ borders: sinBordes, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "Comunidad San Adolfo (SA) · Programa Ubuntu Café", size: 16, color: COL.bark })] })] }),
+              new TableCell({ borders: sinBordes, width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Referencias: Cenicafé · FNC · SCA", size: 16, color: COL.bark })] })] }),
+            ] })],
+          })] }) },
+          children: [
+            tablaCabecera, lineaCabecera,
+            bloqueObjetivo, espacio(),
+            ...bloqueAmbitos, espacio(),
+            filaLiderazgoRecursos, espacio(),
+            tituloSeccion("Listado de Tareas"),
+            new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasTareas }),
+          ],
+        }],
+      });
 
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
